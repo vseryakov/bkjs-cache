@@ -4,13 +4,13 @@
 
  - Generic cache outside of V8 heap, `name` refers to a separate named cache with its own set of keys
    - `cacheSave(name, file, separator)` - dump names cache contents into a file
-   - `cachePut(name, key, value)`
-   - `cacheIncr(name, key, value)`
-   - `cacheGet(name, key)`
-   - `cacheDel(name, key)`
-   - `cacheExists(name, key)`
-   - `cacheKeys(name)`
-   - `cacheClear(name)`
+   - `cachePut(name, key, value)` - save a key value pair in the named cache
+   - `cacheIncr(name, key, value)` - increment a key value, non existent keys are assumed to be 0
+   - `cacheGet(name, key)` - return value for a key
+   - `cacheDel(name, key)` - delete a key 
+   - `cacheExists(name, key)` - returns true if a key exists
+   - `cacheKeys(name)` - return a list of all keys in the named cache
+   - `cacheClear(name)` - delete all keys
    - `cacheNames()` - returs all existing named caches
    - `cacheSize(name)` - returns size of a cache
    - `cacheEach(name, callback)` - call a callback for each key
