@@ -76,6 +76,24 @@
 using namespace std::tr1;
 using namespace std;
 
+// Printing messages with time and line info
+#define LogError(fmt...)               if (bkLogCheck(Log_Error)) bkLogPrint(Log_Error, __PRETTY_FUNCTION__, fmt);
+#define LogWarn(fmt...)                if (bkLogCheck(Log_Warn)) bkLogPrint(Log_Warn, __FUNCTION__, fmt);
+#define LogNotice(fmt...)              if (bkLogCheck(Log_Notice)) bkLogPrint(Log_Notice, __FUNCTION__, fmt);
+#define LogInfo(fmt...)                if (bkLogCheck(Log_Info)) bkLogPrint(Log_Info, __FUNCTION__, fmt);
+#define LogDebug(fmt...)               if (bkLogCheck(Log_Debug)) bkLogPrint(Log_Debug, __PRETTY_FUNCTION__, fmt);
+#define LogDev(fmt...)                 if (bkLogCheck(Log_Dev)) bkLogPrint(Log_Dev, __PRETTY_FUNCTION__, fmt);
+#define LogTest(fmt...)                if (bkLogCheck(Log_Test)) bkLogPrint(Log_Test, __PRETTY_FUNCTION__, fmt);
+
+#define Log_None                       -1
+#define Log_Error                      -1
+#define Log_Warn                        0
+#define Log_Notice                      1
+#define Log_Info                        2
+#define Log_Debug                       3
+#define Log_Dev                         4
+#define Log_Test                        5
+
 #define bkStringify2(x)   #x
 #define bkStringify(x)    bkStringify2(x)
 
@@ -158,17 +176,27 @@ protected:
 // System init, OS specific actions
 void bkLibInit();
 
+// Logging support
+bool bkLogCheck(int level);
+int bkLogGet(void);
+int bkLogSet(int level);
+int bkLogSet(const char *level);
+const char *bkLogToString(int level);
+int bkLogFromString(const char *str);
+void bkLogPrint(int level, const char *prefix, const char *fmt, ...);
+void bkLogVPrint(int level, const char *prefix, const char *fmt, va_list ap);
+
 // Convenient C++ functions
-string strReplace(const string value, const string search, const string replace);
-string strToLower(const string word);
-string strTrim(const string str, const string delim = " \r\n\t");
-string strRtrim(const string str, const string delim = " \r\n\t");
-vector<string> strSplit(const string str, const string delim = " ", const string quotes = string());
-bool strContains(const vector<string> &list, const string key);
-string toString(const vector<string> &list, const string delim = " ");
-string toString(vector<string> *list, const string delim = " ");
-bool strEqual(const string &a, const string &b);
-bool strNumeric(string str);
+string bkStrReplace(const string value, const string search, const string replace);
+string bkStrToLower(const string word);
+string bkStrTrim(const string str, const string delim = " \r\n\t");
+string bkStrRtrim(const string str, const string delim = " \r\n\t");
+vector<string> bkStrSplit(const string str, const string delim = " ", const string quotes = string());
+bool bkStrContains(const vector<string> &list, const string key);
+string bkToString(const vector<string> &list, const string delim = " ");
+string bkToString(vector<string> *list, const string delim = " ");
+bool bkStrEqual(const string &a, const string &b);
+bool bkStrNumeric(string str);
 
 // sprintf like
 string bkFmtStr(string, ...);

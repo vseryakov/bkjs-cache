@@ -12,7 +12,6 @@
       "sources": [
         "binding.cpp",
         "bklib/bklib.cpp",
-        "bklib/bklog.cpp",
       ],
       "conditions": [
         [ 'OS=="mac"', {

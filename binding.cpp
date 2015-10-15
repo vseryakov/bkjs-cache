@@ -5,7 +5,6 @@
 
 #include "bkjs.h"
 #include "bklib.h"
-#include "bklog.h"
 
 static const string empty;
 
@@ -211,7 +210,7 @@ typedef map<std::string, ::StringCache> Cache;
 static Cache _cache;
 static LRUStringCache _lru;
 
-static NAN_METHOD(cacheClear)
+static NAN_METHOD(clear)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
 
@@ -222,7 +221,7 @@ static NAN_METHOD(cacheClear)
     }
 }
 
-static NAN_METHOD(cachePut)
+static NAN_METHOD(put)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -236,7 +235,7 @@ static NAN_METHOD(cachePut)
     itc->second.put(*key, *val);
 }
 
-static NAN_METHOD(cacheIncr)
+static NAN_METHOD(incr)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -251,7 +250,7 @@ static NAN_METHOD(cacheIncr)
     info.GetReturnValue().Set(Nan::New(v.c_str()).ToLocalChecked());
 }
 
-static NAN_METHOD(cacheDel)
+static NAN_METHOD(del)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -260,7 +259,7 @@ static NAN_METHOD(cacheDel)
     if (itc != _cache.end()) itc->second.del(*key);
 }
 
-static NAN_METHOD(cacheGet)
+static NAN_METHOD(get)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -272,7 +271,7 @@ static NAN_METHOD(cacheGet)
     }
 }
 
-static NAN_METHOD(cacheExists)
+static NAN_METHOD(exists)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -285,7 +284,7 @@ static NAN_METHOD(cacheExists)
     }
 }
 
-static NAN_METHOD(cacheKeys)
+static NAN_METHOD(keys)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
 
@@ -303,7 +302,7 @@ static NAN_METHOD(cacheKeys)
     info.GetReturnValue().Set(keys);
 }
 
-static NAN_METHOD(cacheNames)
+static NAN_METHOD(names)
 {
     Local<Array> keys = Array::New();
     Cache::const_iterator it = _cache.begin();
@@ -317,7 +316,7 @@ static NAN_METHOD(cacheNames)
     info.GetReturnValue().Set(keys);
 }
 
-static NAN_METHOD(cacheSize)
+static NAN_METHOD(size)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     int count = 0;
@@ -326,7 +325,7 @@ static NAN_METHOD(cacheSize)
     info.GetReturnValue().Set(Nan::New(count));
 }
 
-static NAN_METHOD(cacheEach)
+static NAN_METHOD(each)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_FUNCTION(1, cb);
@@ -335,7 +334,7 @@ static NAN_METHOD(cacheEach)
     if (itc != _cache.end()) itc->second.each(cb);
 }
 
-static NAN_METHOD(cacheBegin)
+static NAN_METHOD(begin)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     Cache::iterator itc = _cache.find(*name);
@@ -346,14 +345,14 @@ static NAN_METHOD(cacheBegin)
     }
 }
 
-static NAN_METHOD(cacheNext)
+static NAN_METHOD(next)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     Cache::iterator itc = _cache.find(*name);
     if (itc != _cache.end()) info.GetReturnValue().Set(Nan::New(itc->second.next()));
 }
 
-static NAN_METHOD(cacheForEachNext)
+static NAN_METHOD(forEachNext)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     Cache::iterator itc = _cache.find(*name);
@@ -364,7 +363,7 @@ static NAN_METHOD(cacheForEachNext)
     }
 }
 
-static NAN_METHOD(cacheForEach)
+static NAN_METHOD(forEach)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_FUNCTION(1, cb);
@@ -385,7 +384,7 @@ static NAN_METHOD(cacheForEach)
     info.GetReturnValue().Set(Nan::False());
 }
 
-static NAN_METHOD(cacheSave)
+static NAN_METHOD(save)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, file);
@@ -498,21 +497,21 @@ void CacheInit(Handle<Object> target)
 {
     Nan::HandleScope scope;
 
-    NAN_EXPORT(target, cacheSave);
-    NAN_EXPORT(target, cachePut);
-    NAN_EXPORT(target, cacheIncr);
-    NAN_EXPORT(target, cacheGet);
-    NAN_EXPORT(target, cacheExists);
-    NAN_EXPORT(target, cacheDel);
-    NAN_EXPORT(target, cacheKeys);
-    NAN_EXPORT(target, cacheClear);
-    NAN_EXPORT(target, cacheNames);
-    NAN_EXPORT(target, cacheSize);
-    NAN_EXPORT(target, cacheEach);
-    NAN_EXPORT(target, cacheForEach);
-    NAN_EXPORT(target, cacheForEachNext);
-    NAN_EXPORT(target, cacheBegin);
-    NAN_EXPORT(target, cacheNext);
+    NAN_EXPORT(target, save);
+    NAN_EXPORT(target, put);
+    NAN_EXPORT(target, incr);
+    NAN_EXPORT(target, get);
+    NAN_EXPORT(target, exists);
+    NAN_EXPORT(target, del);
+    NAN_EXPORT(target, keys);
+    NAN_EXPORT(target, clear);
+    NAN_EXPORT(target, names);
+    NAN_EXPORT(target, size);
+    NAN_EXPORT(target, each);
+    NAN_EXPORT(target, forEach);
+    NAN_EXPORT(target, forEachNext);
+    NAN_EXPORT(target, begin);
+    NAN_EXPORT(target, next);
 
     NAN_EXPORT(target, lruInit);
     NAN_EXPORT(target, lruStats);

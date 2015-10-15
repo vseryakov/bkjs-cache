@@ -3,7 +3,6 @@
 //  October 2014
 
 #include "bklib.h"
-#include "bklog.h"
 
 static uint32_t _crc32[256] = {
     0x00000000, 0x04c11db7, 0x09823b6e, 0x0d4326d9,
@@ -83,6 +82,79 @@ static const char _alphabet[] = {
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, /* 7x */
 };
 #define isDelim(ch) (((ch) & 0x80) == 0 && ((ch) < 0x20 || !_alphabet[(ch) - 0x20]))
+
+static int _log(Log_Notice);
+
+bool bkLogCheck(int level)
+{
+    return _log >= level;
+}
+
+int bkLogGet(void)
+{
+    return _log;
+}
+
+int bkLogSet(int level)
+{
+    return _log = level;
+}
+
+int bkLogSet(const char *level)
+{
+    return bkLogSet(bkLogFromString(level));
+}
+
+const char *bkLogToString(int level)
+{
+    return level == Log_Error ? "ERROR" : level == Log_Warn ? "WARN" : level == Log_Notice ? "NOTICE" :
+           level == Log_Info ? "INFO" : level == Log_Debug ? "DEBUG" : level == Log_Dev ? "DEV" :
+           level == Log_Test ? "TEST" : "NONE";
+}
+
+int bkLogFromString(const char *str)
+{
+    if (!str) return 0;
+
+    if (isdigit(str[0])) {
+        int i = atoi(str);
+        return i >= Log_None && i <= Log_Test ? i : -1;
+    }
+
+    if (!strcasecmp(str, "ERROR")) return Log_Error;
+    if (!strcasecmp(str, "WARN")) return Log_Warn;
+    if (!strcasecmp(str, "NOTICE")) return Log_Notice;
+    if (!strcasecmp(str, "INFO")) return Log_Info;
+    if (!strcasecmp(str, "DEBUG")) return Log_Debug;
+    if (!strcasecmp(str, "DEV")) return Log_Dev;
+    if (!strcasecmp(str, "TEST")) return Log_Test;
+    return -1;
+}
+
+void bkLogPrint(int level, const char *prefix, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    bkLogVPrint(level, prefix, fmt, ap);
+    va_end(ap);
+}
+
+void bkLogVPrint(int level, const char *prefix, const char *fmt, va_list ap)
+{
+    if (!bkLogCheck(level)) return;
+    struct tm ltm;
+    struct timeval tv;
+    char tbuf[64];
+    FILE *fp = level >= Log_Warn ? stderr : stdout;
+
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &ltm);
+    strftime(tbuf, 64, "%Y-%m-%d %H:%M:%S", &ltm);
+    fprintf(fp, "[%s.%ld][%d.%p][%s] %s: ", tbuf, (long int)tv.tv_usec/1000, getpid(), (void*)pthread_self(), prefix ? prefix : "N/A", bkLogToString(level));
+    vfprintf(fp, fmt, ap);
+    fprintf(fp, "\n");
+}
 
 void bkLibInit()
 {
@@ -531,7 +603,7 @@ void bkSetFileTime(string file, int64_t t)
 bool bkMakePath(string path)
 {
     string dir;
-    vector<string> list = strSplit(path, "/");
+    vector<string> list = bkStrSplit(path, "/");
     for (uint i = 0; i < list.size() - 1; i++) {
         dir += list[i] + '/';
         if (mkdir(dir.c_str(), 0755)) {
@@ -580,7 +652,7 @@ vector<string> bkShuffleList(const vector<string> list)
     return rc;
 }
 
-bool strNumeric(string str)
+bool bkStrNumeric(string str)
 {
     bool rc = 1;
     for (uint i = 0; rc && i < str.size(); i++) if (!isdigit(str[i]) && str[i] != '.' && str[i] != '-') rc = 0;
@@ -588,7 +660,7 @@ bool strNumeric(string str)
 }
 
 // Returns new string
-string strReplace(const string value, const string search, const string replace)
+string bkStrReplace(const string value, const string search, const string replace)
 {
     string::size_type next = 0, prev = 0;
     string rc;
@@ -603,26 +675,26 @@ string strReplace(const string value, const string search, const string replace)
     return rc;
 }
 
-string toString(vector<string> *list, string delim)
+string bkToString(vector<string> *list, string delim)
 {
-    return toString(*list, delim);
+    return bkToString(*list, delim);
 }
 
-string toString(const vector<string> &list, string delim)
+string bkToString(const vector<string> &list, string delim)
 {
     string rc;
     for (unsigned n = 0; n < list.size(); ++n) rc += list[n] + (n < list.size() - 1 ? delim : "");
     return rc;
 }
 
-string strToLower(const string word)
+string bkStrToLower(const string word)
 {
     string s(word);
     transform(s.begin(), s.end(), s.begin(), ::tolower);
     return s;
 }
 
-string strTrim(const string str, const string delim)
+string bkStrTrim(const string str, const string delim)
 {
     string::size_type i = str.find_first_not_of(delim, 0);
     if (i == string::npos) return "";
@@ -631,20 +703,20 @@ string strTrim(const string str, const string delim)
     return str.substr(i, j - i + 1);
 }
 
-string strRtrim(const string str, const string delim)
+string bkStrRtrim(const string str, const string delim)
 {
     string::size_type j = str.find_last_not_of(delim);
     if (j == string::npos) return str;
     return str.substr(0, j + 1);
 }
 
-bool strContains(const vector<string> &list, const string key)
+bool bkStrContains(const vector<string> &list, const string key)
 {
     vector<string>::const_iterator it = find(list.begin(), list.end(), key);
     return it != list.end();
 }
 
-bool strEqual(const string &a, const string &b)
+bool bkStrEqual(const string &a, const string &b)
 {
     unsigned int sz = a.size();
     if (b.size() != sz) return false;
@@ -654,7 +726,7 @@ bool strEqual(const string &a, const string &b)
     return true;
 }
 
-vector<string> strSplit(const string str, const string delim, const string quotes)
+vector<string> bkStrSplit(const string str, const string delim, const string quotes)
 {
     vector<string> rc;
     string::size_type i = 0, j = 0, q = string::npos;
@@ -1017,7 +1089,7 @@ string bkJsonStringify(bkJsonValue *value, string rc)
     if (!value) return rc;
 
     if (value->name.size()) {
-        if (!(value->parent && value->parent->type == JSON_ARRAY && strNumeric(value->name))) {
+        if (!(value->parent && value->parent->type == JSON_ARRAY && bkStrNumeric(value->name))) {
             rc += "\"" + value->name + "\":";
         }
     }
