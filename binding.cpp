@@ -9,7 +9,7 @@
 static const string empty;
 
 struct LRUStringCache {
-    typedef unordered_map<string, pair<string, list<string>::iterator> > LRUStringItems;
+    typedef unordered_map<string, pair<pair<string,int64_t>,list<string>::iterator> > LRUStringItems;
     size_t size;
     size_t max;
     list<string> lru;
@@ -20,49 +20,54 @@ struct LRUStringCache {
     LRUStringCache(int m = 100000): max(m) { clear(); }
     ~LRUStringCache() { clear(); }
 
-    const string& get(const string& k) {
+    const string& get(const string& k, int64_t now) {
         const LRUStringItems::iterator it = items.find(k);
         if (it == items.end()) {
             misses++;
             return empty;
         }
         hits++;
+        if (now > 0 && it->second.first.second > 0 && now > it->second.first.second) {
+            del(k);
+            return empty;
+        }
         lru.splice(lru.end(), lru, it->second.second);
-        return it->second.first;
+        return it->second.first.first;
     }
-    const string& put(const string& k, const string& v) {
+    const string& put(const string& k, const string& v, int64_t expire) {
         if (items.size() >= max) clean();
         const LRUStringItems::iterator it = items.find(k);
         if (it == items.end()) {
             list<string>::iterator it = lru.insert(lru.end(), k);
-            pair<LRUStringItems::iterator,bool> p = items.insert(std::make_pair(k, std::make_pair(v, it)));
+            pair<LRUStringItems::iterator,bool> p = items.insert(std::make_pair(k, std::make_pair(std::make_pair(v, expire), it)));
             Nan::AdjustExternalMemory(k.size() + v.size());
             size += k.size() + v.size();
             ins++;
-            return p.first->second.first;
+            return p.first->second.first.first;
         } else {
-            Nan::AdjustExternalMemory(-it->second.first.size());
-            it->second.first = v;
+            Nan::AdjustExternalMemory(-it->second.first.first.size());
+            it->second.first.first = v;
+            it->second.first.second = expire;
             Nan::AdjustExternalMemory(v.size());
             lru.splice(lru.end(), lru, it->second.second);
-            return it->second.first;
+            return it->second.first.first;
         }
     }
     bool exists(const string &k) {
         const LRUStringItems::iterator it = items.find(k);
         return it != items.end();
     }
-    const string &incr(const string& k, const string& v) {
-        const string& o = get(k);
+    const string &incr(const string& k, const string& v, int64_t expire) {
+        const string& o = get(k, 0);
         char val[32];
         sprintf(val, "%lld", atoll(o.c_str()) + atoll(v.c_str()));
-        return put(k, val);
+        return put(k, val, expire);
     }
     void del(const string &k) {
         const LRUStringItems::iterator it = items.find(k);
         if (it == items.end()) return;
-        size -= k.size() + it->second.first.size();
-        Nan::AdjustExternalMemory(-(k.size() + it->second.first.size()));
+        size -= k.size() + it->second.first.first.size();
+        Nan::AdjustExternalMemory(-(k.size() + it->second.first.first.size()));
         lru.erase(it->second.second);
         items.erase(it);
         dels++;
@@ -70,7 +75,7 @@ struct LRUStringCache {
     void clean() {
         const LRUStringItems::iterator it = items.find(lru.front());
         if (it == items.end()) return;
-        size -= it->first.size() + it->first.size();
+        size -= it->first.size() + it->second.first.first.size();
         items.erase(it);
         lru.pop_front();
         cleans++;
@@ -429,16 +434,26 @@ static NAN_METHOD(lruPut)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, val);
+    NAN_OPTIONAL_ARGUMENT_AS_INT64(2, expire);
 
-    _lru.put(*key, *val);
+    _lru.put(*key, *val, expire);
 }
 
 static NAN_METHOD(lruIncr)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, val);
+    NAN_OPTIONAL_ARGUMENT_AS_INT64(2, expire);
 
-    const string& str = _lru.incr(*key, *val);
+    const string& str = _lru.incr(*key, *val, expire);
+    info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
+}
+
+static NAN_METHOD(lruGet)
+{
+    NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
+    NAN_OPTIONAL_ARGUMENT_AS_INT64(1, now);
+    const string& str = _lru.get(*key, now);
     info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
 }
 
@@ -446,13 +461,6 @@ static NAN_METHOD(lruDel)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     _lru.del(*key);
-}
-
-static NAN_METHOD(lruGet)
-{
-    NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
-    const string& str = _lru.get(*key);
-    info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
 }
 
 static NAN_METHOD(lruExists)

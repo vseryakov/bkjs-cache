@@ -44,6 +44,7 @@ using namespace std;
 
 #define NAN_OPTIONAL_ARGUMENT_INT(i, var) int var = (info.Length() > (i) && info[i]->IsInt32() ? info[i]->Int32Value() : 0);
 #define NAN_OPTIONAL_ARGUMENT_AS_INT(i, var) int var = (info.Length() > (i) ? info[i]->Int32Value() : 0);
+#define NAN_OPTIONAL_ARGUMENT_AS_INT64(i, var) int64_t var = (info.Length() > (i) ? info[i]->Int32Value() : 0);
 #define NAN_OPTIONAL_ARGUMENT_INT2(i, var, dflt) int var = (info.Length() > (i) && info[i]->IsInt32() ? info[i]->Int32Value() : dflt);
 #define NAN_OPTIONAL_ARGUMENT_NUMBER(i, var) float var = (info.Length() > (i) && info[i]->IsNumber() ? info[i]->NumberValue() : 0);
 #define NAN_OPTIONAL_ARGUMENT_STRING(i, var) Nan::Utf8String var(info.Length() > (i) && info[i]->IsString() ? info[i]->ToString() : Nan::EmptyString());
