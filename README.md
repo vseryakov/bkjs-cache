@@ -25,10 +25,12 @@
    - `lruSize()` - return size of the current LRU cache
    - `lruCount()` - number of keys in the LRU cache
    - `lruPut(name, val [, expire])` - set/replace value by name, expire is the time in the future when this key becomes invalid
-   - `lruGet(name [, now])` - return value by name, if now is given all keys below this timestamp will be consideed invalid and deleted
+   - `lruGet(name [, now])` - return value by name, if `now` is given in ms then a key with ttl below this timestamp will be considered
+   invalid and deleted even if the expiration never been set before
    - `lruIncr(name, val [, expire])` - increase value by given number, non existent items assumed to be 0
    - `lruDel(name)` - delete by name
-   - `lruKeys()` - return all cache key names
+   - `lruKeys([pattern] [,level])` - return all cache key names, if pattern is given match all keys beginning with it, if details is 1 then return 
+   an array with keys and expiration, if details is 2 then return an array with item key, value and expiration 
    - `lruClear()` - clear LRU cache
 
 # Author

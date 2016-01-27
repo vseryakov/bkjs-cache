@@ -9,7 +9,7 @@
 static const string empty;
 
 struct LRUStringCache {
-    typedef unordered_map<string, pair<pair<string,int64_t>,list<string>::iterator> > LRUStringItems;
+    typedef unordered_map<string, pair<pair<string,uint64_t>,list<string>::iterator> > LRUStringItems;
     size_t size;
     size_t max;
     list<string> lru;
@@ -20,21 +20,21 @@ struct LRUStringCache {
     LRUStringCache(int m = 100000): max(m) { clear(); }
     ~LRUStringCache() { clear(); }
 
-    const string& get(const string& k, int64_t now) {
+    const string& get(const string& k, uint64_t now) {
         const LRUStringItems::iterator it = items.find(k);
         if (it == items.end()) {
             misses++;
             return empty;
         }
         hits++;
-        if (now > 0 && it->second.first.second > 0 && now > it->second.first.second) {
+        if (now > 0 && now > it->second.first.second) {
             del(k);
             return empty;
         }
         lru.splice(lru.end(), lru, it->second.second);
         return it->second.first.first;
     }
-    const string& put(const string& k, const string& v, int64_t expire) {
+    const string& put(const string& k, const string& v, uint64_t expire) {
         if (items.size() >= max) clean();
         const LRUStringItems::iterator it = items.find(k);
         if (it == items.end()) {
@@ -434,7 +434,7 @@ static NAN_METHOD(lruPut)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, val);
-    NAN_OPTIONAL_ARGUMENT_AS_INT64(2, expire);
+    NAN_OPTIONAL_ARGUMENT_AS_UINT64(2, expire, 0);
 
     _lru.put(*key, *val, expire);
 }
@@ -443,7 +443,7 @@ static NAN_METHOD(lruIncr)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, val);
-    NAN_OPTIONAL_ARGUMENT_AS_INT64(2, expire);
+    NAN_OPTIONAL_ARGUMENT_AS_UINT64(2, expire, 0);
 
     const string& str = _lru.incr(*key, *val, expire);
     info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
@@ -452,7 +452,7 @@ static NAN_METHOD(lruIncr)
 static NAN_METHOD(lruGet)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
-    NAN_OPTIONAL_ARGUMENT_AS_INT64(1, now);
+    NAN_OPTIONAL_ARGUMENT_AS_UINT64(1, now, 0);
     const string& str = _lru.get(*key, now);
     info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
 }
@@ -472,17 +472,46 @@ static NAN_METHOD(lruExists)
 static NAN_METHOD(lruKeys)
 {
     NAN_OPTIONAL_ARGUMENT_AS_STRING(0, str);
+    NAN_OPTIONAL_ARGUMENT_AS_INT(1, details, 0);
     Local<Array> keys = Array::New();
     char *key = *str;
     int i = 0, n = strlen(key);
-    list<string>::iterator it = _lru.lru.begin();
-    while (it != _lru.lru.end()) {
-        if (!*key || !strncmp(it->c_str(), key, n)) {
-            Local<String> str = String::New(it->c_str());
-            keys->Set(Integer::New(i), str);
-            i++;
+    if (!details) {
+        list<string>::iterator it = _lru.lru.begin();
+        while (it != _lru.lru.end()) {
+            if (!*key || !strncmp(it->c_str(), key, n)) {
+                Local<String> str = String::New(it->c_str());
+                keys->Set(Integer::New(i), str);
+                i++;
+            }
+            it++;
         }
-        it++;
+    } else {
+        LRUStringCache::LRUStringItems::iterator it = _lru.items.begin();
+        while (it != _lru.items.end()) {
+            if (!*key || !strncmp(it->first.c_str(), key, n)) {
+                switch (details) {
+                case 1: {
+                    Local<Object> obj = Local<Object>::New(Object::New());
+                    Local<String> str = String::New(it->first.c_str());
+                    obj->Set(Nan::New("key").ToLocalChecked(), str);
+                    obj->Set(Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
+                    keys->Set(Integer::New(i), obj);
+                    break;
+                }
+                default: {
+                    Local<Object> obj = Local<Object>::New(Object::New());
+                    Local<String> str = String::New(it->first.c_str());
+                    Local<String> val = String::New(it->second.first.first.c_str());
+                    obj->Set(Nan::New("key").ToLocalChecked(), str);
+                    obj->Set(Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
+                    obj->Set(Nan::New("value").ToLocalChecked(), val);
+                    keys->Set(Integer::New(i), obj);
+                }}
+                i++;
+            }
+            it++;
+        }
     }
     info.GetReturnValue().Set(keys);
 }
