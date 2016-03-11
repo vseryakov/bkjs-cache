@@ -91,10 +91,12 @@ struct LRUStringCache {
 struct StringCache {
     bkStringMap items;
     bkStringMap::const_iterator nextIt;
-    Persistent<Function> nextCb;
-    Persistent<Function> completed;
+    Nan::Callback *nextCb;
+    Nan::Callback *completedCb;
 
-    StringCache() { nextIt = items.end(); }
+    StringCache(): nextCb(0), completedCb(0) {
+        nextIt = items.end();
+    }
     ~StringCache() { clear(); }
     const string &get(const string &key) {
         bkStringMap::iterator it = items.find(key);
@@ -140,17 +142,17 @@ struct StringCache {
         items.clear();
         nextIt = items.end();
         Nan::AdjustExternalMemory(-n);
-        if (!nextCb.IsEmpty()) nextCb.Dispose();
-        if (!completed.IsEmpty()) completed.Dispose();
-        nextCb.Clear();
-        completed.Clear();
+        if (nextCb) delete nextCb;
+        if (completedCb) delete completedCb;
+        nextCb = 0;
+        completedCb = 0;
     }
 
-    bool begin(Handle<Function> cb1 = Handle<Function>(), Handle<Function> cb2 = Handle<Function>()) {
-        if (!nextCb.IsEmpty()) nextCb.Dispose();
-        if (!completed.IsEmpty()) completed.Dispose();
-        nextCb = Persistent<Function>::New(cb1);
-        completed = Persistent<Function>::New(cb2);
+    bool begin(Local<Function> cb1 = Local<Function>(), Local<Function> cb2 = Local<Function>()) {
+        if (nextCb) delete nextCb;
+        if (completedCb) delete completedCb;
+        nextCb = new Nan::Callback(cb1);
+        completedCb = new Nan::Callback(cb2);
         nextIt = items.begin();
         return true;
     }
@@ -170,7 +172,7 @@ struct StringCache {
             Local<Value> argv[2];
             argv[0] = Nan::New(it->first.c_str()).ToLocalChecked();
             argv[1] = Nan::New(it->second.c_str()).ToLocalChecked();
-            NAN_TRY_CATCH_CALL(Context::GetCurrent()->Global(), cb, 2, argv);
+            NAN_TRY_CATCH_CALL(Nan::GetCurrentContext()->Global(), cb, 2, argv);
             it++;
         }
     }
@@ -194,18 +196,21 @@ struct StringCache {
         StringCache *cache = (StringCache *)req->data;
         Local<Value> argv[2];
         if (cache->nextIt != cache->items.end()) {
-            argv[0] = Nan::New(cache->nextIt->first.c_str()).ToLocalChecked();
-            argv[1] = Nan::New(cache->nextIt->second.c_str()).ToLocalChecked();
+            if (cache->nextCb) {
+                argv[0] = Nan::New(cache->nextIt->first.c_str()).ToLocalChecked();
+                argv[1] = Nan::New(cache->nextIt->second.c_str()).ToLocalChecked();
+                NAN_TRY_CATCH_CALL(Nan::GetCurrentContext()->Global(), cache->nextCb, 2, argv);
+            }
             cache->nextIt++;
-            NAN_TRY_CATCH_CALL(Context::GetCurrent()->Global(), cache->nextCb, 2, argv);
         }
         delete req;
     }
     static void CompletedTimer(uv_timer_t *req, int status) {
         Nan::HandleScope scope;
         StringCache *cache = (StringCache *)req->data;
+        if (!cache->completedCb) return;
         Local<Value> argv[1];
-        NAN_TRY_CATCH_CALL(Context::GetCurrent()->Global(), cache->completed, 0, argv);
+        NAN_TRY_CATCH_CALL(Nan::GetCurrentContext()->Global(), cache->completedCb, 0, argv);
         delete req;
     }
 };
@@ -371,22 +376,20 @@ static NAN_METHOD(forEachNext)
 static NAN_METHOD(forEach)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
-    NAN_REQUIRE_ARGUMENT_FUNCTION(1, cb);
+    NAN_REQUIRE_ARGUMENT_FUNCTION(1, next);
     NAN_REQUIRE_ARGUMENT_FUNCTION(2, complete);
 
     Cache::iterator itc = _cache.find(*name);
     if (itc != _cache.end()) {
-        itc->second.begin(cb, complete);
+        itc->second.begin(next, complete);
         info.GetReturnValue().Set(Nan::New(itc->second.timer()));
-        return;
+    } else {
+        Local<Value> argv[1];
+        Nan::TryCatch try_catch;
+        complete->Call(Nan::GetCurrentContext()->Global(), 0, argv);
+        if (try_catch.HasCaught()) FatalException(try_catch);
+        info.GetReturnValue().Set(Nan::False());
     }
-
-    Local<Value> argv[1];
-    Nan::TryCatch try_catch;
-    complete->Call(Context::GetCurrent()->Global(), 0, argv);
-    if (try_catch.HasCaught()) FatalException(try_catch);
-
-    info.GetReturnValue().Set(Nan::False());
 }
 
 static NAN_METHOD(save)
