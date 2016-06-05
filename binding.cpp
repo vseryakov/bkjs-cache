@@ -93,11 +93,12 @@ struct StringCache {
     bkStringMap::const_iterator nextIt;
     Nan::Callback *nextCb;
     Nan::Callback *completedCb;
+    uint64_t expire;
 
-    StringCache(): nextCb(0), completedCb(0) {
+    StringCache(): nextCb(0), completedCb(0), expire(0) {
         nextIt = items.end();
     }
-    ~StringCache() { clear(); }
+    ~StringCache() { clear(0); }
     const string &get(const string &key) {
         bkStringMap::iterator it = items.find(key);
         if (it != items.end()) return it->second;
@@ -133,7 +134,7 @@ struct StringCache {
             items.erase(it);
         }
     }
-    void clear() {
+    void clear(int ttl) {
         bkStringMap::iterator it;
         int n = 0;
         for (it = items.begin(); it != items.end(); ++it) {
@@ -146,6 +147,7 @@ struct StringCache {
         if (completedCb) delete completedCb;
         nextCb = 0;
         completedCb = 0;
+        expire = ttl > 0 ? time(0) + ttl : 0;
     }
 
     bool begin(Local<Function> cb1 = Local<Function>(), Local<Function> cb2 = Local<Function>()) {
@@ -223,11 +225,17 @@ static LRUStringCache _lru;
 static NAN_METHOD(clear)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
+    NAN_OPTIONAL_ARGUMENT_AS_INT(1, ttl, 0);
 
     Cache::iterator itc = _cache.find(*name);
     if (itc != _cache.end()) {
-        itc->second.clear();
+        itc->second.clear(ttl);
         _cache.erase(*name);
+    } else
+    if (ttl > 0) {
+        _cache[*name] = StringCache();
+        itc = _cache.find(*name);
+        itc->second.clear(ttl);
     }
 }
 
@@ -519,6 +527,16 @@ static NAN_METHOD(lruKeys)
     info.GetReturnValue().Set(keys);
 }
 
+static void ClearCacheTimer(uv_timer_t *req, int status)
+{
+    uint64_t now = time(0);
+    Cache::iterator itc = _cache.begin();
+    while (itc != _cache.end()) {
+        if (itc->second.expire  > 0 && itc->second.expire < now) itc->second.clear(0);
+        itc++;
+    }
+}
+
 static NAN_METHOD(lruStats)
 {
     Local<Object> obj = Object::New();
@@ -564,6 +582,10 @@ void CacheInit(Handle<Object> target)
     NAN_EXPORT(target, lruDel);
     NAN_EXPORT(target, lruKeys);
     NAN_EXPORT(target, lruClear);
+
+    uv_timer_t *req = new uv_timer_t;
+    uv_timer_init(uv_default_loop(), req);
+    uv_timer_start(req, ClearCacheTimer, 0, 60000);
 }
 
 NODE_MODULE(binding, CacheInit);

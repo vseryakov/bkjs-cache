@@ -11,7 +11,8 @@
    - `del(name, key)` - delete a key
    - `exists(name, key)` - returns true if a key exists
    - `keys(name)` - return a list of all keys in the named cache
-   - `clear(name)` - delete all keys
+   - `clear(name, ttl)` - delete all keys, if ttl is greater than 0 then it must be a number of seconds the cache will be alive till it expires,
+      all subsequent items put in the cache will live until it expires automatically
    - `names()` - returs all existing named caches
    - `size(name)` - returns size of a cache
    - `each(name, callback)` - call a callback for each key
@@ -29,8 +30,8 @@
    invalid and deleted even if the expiration never been set before
    - `lruIncr(name, val [, expire])` - increase value by given number, non existent items assumed to be 0
    - `lruDel(name)` - delete by name
-   - `lruKeys([pattern] [,level])` - return all cache key names, if pattern is given match all keys beginning with it, if details is 1 then return 
-   an array with keys and expiration, if details is 2 then return an array with item key, value and expiration 
+   - `lruKeys([pattern] [,level])` - return all cache key names, if pattern is given match all keys beginning with it, if details is 1 then return
+   an array with keys and expiration, if details is 2 then return an array with item key, value and expiration
    - `lruClear()` - clear LRU cache
 
 # Author
