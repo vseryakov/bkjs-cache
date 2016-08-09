@@ -59,10 +59,6 @@
 #include <net/ethernet.h>
 #include <resolv.h>
 #include <termios.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/rand.h>
 #endif
 
 #include <algorithm>

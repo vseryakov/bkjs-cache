@@ -736,7 +736,7 @@ vector<string> bkStrSplit(const string str, const string delim, const string quo
         i = str.find_first_not_of(delim, i);
         if (i == string::npos) break;
         // Opening quote
-        if (i && quotes.find(str[i]) != string::npos) {
+        if (quotes.find(str[i]) != string::npos) {
             q = ++i;
             while (q < len) {
                 q = str.find_first_of(quotes, q);
