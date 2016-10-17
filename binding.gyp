@@ -1,7 +1,6 @@
 {
     "target_defaults": {
       "include_dirs": [
-        "bklib",
         "/opt/local/include",
         "<!(node -e \"require('nan')\")"
       ]
@@ -11,7 +10,6 @@
       "target_name": "binding",
       "sources": [
         "binding.cpp",
-        "bklib/bklib.cpp",
       ],
       "conditions": [
         [ 'OS=="mac"', {

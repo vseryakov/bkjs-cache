@@ -16,8 +16,6 @@
    - `names()` - returs all existing named caches
    - `size(name)` - returns size of a cache
    - `each(name, callback)` - call a callback for each key
-   - `forEach(name, onitem, oncomplete)`
-   - `forEachNext(name)` - to be called inside a callback passed to ForEach call to move to the next key
    - `begin(name)` - returns first key
    - `next(name)` - returns next key or undefined when reached the end
  - LRU internal cache outside of V8 heap:

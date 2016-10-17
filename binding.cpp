@@ -4,9 +4,21 @@
 //
 
 #include "bkjs.h"
-#include "bklib.h"
+
+#include <algorithm>
+#include <vector>
+#include <string>
+#include <set>
+#include <list>
+#include <map>
+#include <queue>
+#include <tr1/unordered_map>
+using namespace std::tr1;
+using namespace std;
 
 static const string empty;
+
+typedef map<string, string> bkStringMap;
 
 struct LRUStringCache {
     typedef unordered_map<string, pair<pair<string,uint64_t>,list<string>::iterator> > LRUStringItems;
@@ -91,11 +103,9 @@ struct LRUStringCache {
 struct StringCache {
     bkStringMap items;
     bkStringMap::const_iterator nextIt;
-    Nan::Callback *nextCb;
-    Nan::Callback *completedCb;
     uint64_t expire;
 
-    StringCache(): nextCb(0), completedCb(0), expire(0) {
+    StringCache(): expire(0) {
         nextIt = items.end();
     }
     ~StringCache() { clear(0); }
@@ -143,18 +153,10 @@ struct StringCache {
         items.clear();
         nextIt = items.end();
         Nan::AdjustExternalMemory(-n);
-        if (nextCb) delete nextCb;
-        if (completedCb) delete completedCb;
-        nextCb = 0;
-        completedCb = 0;
         expire = ttl > 0 ? time(0) + ttl : 0;
     }
 
-    bool begin(Local<Function> cb1 = Local<Function>(), Local<Function> cb2 = Local<Function>()) {
-        if (nextCb) delete nextCb;
-        if (completedCb) delete completedCb;
-        nextCb = new Nan::Callback(cb1);
-        completedCb = new Nan::Callback(cb2);
+    bool begin() {
         nextIt = items.begin();
         return true;
     }
@@ -177,43 +179,6 @@ struct StringCache {
             NAN_TRY_CATCH_CALL(Nan::GetCurrentContext()->Global(), cb, 2, argv);
             it++;
         }
-    }
-    bool timer() {
-        if (nextIt != items.end()) {
-            uv_work_t *req = new uv_work_t;
-            req->data = this;
-            uv_queue_work(uv_default_loop(), req, WorkTimer, (uv_after_work_cb)AfterTimer);
-            return true;
-        } else {
-            uv_timer_t *req = new uv_timer_t;
-            uv_timer_init(uv_default_loop(), req);
-            req->data = this;
-            uv_timer_start(req, CompletedTimer, 0, 0);
-            return false;
-        }
-    }
-    static void WorkTimer(uv_work_t *req) {}
-    static void AfterTimer(uv_work_t *req, int status) {
-        Nan::HandleScope scope;
-        StringCache *cache = (StringCache *)req->data;
-        Local<Value> argv[2];
-        if (cache->nextIt != cache->items.end()) {
-            if (cache->nextCb) {
-                argv[0] = Nan::New(cache->nextIt->first.c_str()).ToLocalChecked();
-                argv[1] = Nan::New(cache->nextIt->second.c_str()).ToLocalChecked();
-                NAN_TRY_CATCH_CALL(Nan::GetCurrentContext()->Global(), cache->nextCb, 2, argv);
-            }
-            cache->nextIt++;
-        }
-        delete req;
-    }
-    static void CompletedTimer(uv_timer_t *req, int status) {
-        Nan::HandleScope scope;
-        StringCache *cache = (StringCache *)req->data;
-        if (!cache->completedCb) return;
-        Local<Value> argv[1];
-        NAN_TRY_CATCH_CALL(Nan::GetCurrentContext()->Global(), cache->completedCb, 0, argv);
-        delete req;
     }
 };
 
@@ -368,36 +333,6 @@ static NAN_METHOD(next)
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     Cache::iterator itc = _cache.find(*name);
     if (itc != _cache.end()) info.GetReturnValue().Set(Nan::New(itc->second.next()));
-}
-
-static NAN_METHOD(forEachNext)
-{
-    NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
-    Cache::iterator itc = _cache.find(*name);
-    if (itc != _cache.end()) {
-        info.GetReturnValue().Set(Nan::New(itc->second.timer()));
-    } else {
-        info.GetReturnValue().Set(Nan::False());
-    }
-}
-
-static NAN_METHOD(forEach)
-{
-    NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
-    NAN_REQUIRE_ARGUMENT_FUNCTION(1, next);
-    NAN_REQUIRE_ARGUMENT_FUNCTION(2, complete);
-
-    Cache::iterator itc = _cache.find(*name);
-    if (itc != _cache.end()) {
-        itc->second.begin(next, complete);
-        info.GetReturnValue().Set(Nan::New(itc->second.timer()));
-    } else {
-        Local<Value> argv[1];
-        Nan::TryCatch try_catch;
-        complete->Call(Nan::GetCurrentContext()->Global(), 0, argv);
-        if (try_catch.HasCaught()) FatalException(try_catch);
-        info.GetReturnValue().Set(Nan::False());
-    }
 }
 
 static NAN_METHOD(save)
@@ -566,8 +501,6 @@ void CacheInit(Handle<Object> target)
     NAN_EXPORT(target, names);
     NAN_EXPORT(target, size);
     NAN_EXPORT(target, each);
-    NAN_EXPORT(target, forEach);
-    NAN_EXPORT(target, forEachNext);
     NAN_EXPORT(target, begin);
     NAN_EXPORT(target, next);
 
