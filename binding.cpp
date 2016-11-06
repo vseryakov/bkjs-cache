@@ -160,22 +160,22 @@ struct StringCache {
         nextIt = items.begin();
         return true;
     }
-    Handle<Value> next() {
+    Local<Value> next() {
         Nan::EscapableHandleScope scope;
         if (nextIt == items.end()) return scope.Escape(Nan::Undefined());
-        Local<Array> obj(Array::New());
-        obj->Set(Nan::New(0), Nan::New(nextIt->first.c_str()).ToLocalChecked());
-        obj->Set(Nan::New(1), Nan::New(nextIt->second.c_str()).ToLocalChecked());
+        Local<Array> obj = Nan::New<Array>();
+        obj->Set(Nan::New(0), Nan::New(nextIt->first).ToLocalChecked());
+        obj->Set(Nan::New(1), Nan::New(nextIt->second).ToLocalChecked());
         nextIt++;
         return scope.Escape(obj);
     }
-    void each(Handle<Function> cb) {
+    void each(Local<Function> cb) {
         bkStringMap::const_iterator it = items.begin();
         while (it != items.end()) {
             Nan::HandleScope scope;
             Local<Value> argv[2];
-            argv[0] = Nan::New(it->first.c_str()).ToLocalChecked();
-            argv[1] = Nan::New(it->second.c_str()).ToLocalChecked();
+            argv[0] = Nan::New(it->first).ToLocalChecked();
+            argv[1] = Nan::New(it->second).ToLocalChecked();
             NAN_TRY_CATCH_CALL(Nan::GetCurrentContext()->Global(), cb, 2, argv);
             it++;
         }
@@ -230,7 +230,7 @@ static NAN_METHOD(incr)
         itc = _cache.find(*name);
     }
     string v = itc->second.incr(*key, *val);
-    info.GetReturnValue().Set(Nan::New(v.c_str()).ToLocalChecked());
+    info.GetReturnValue().Set(Nan::New(v).ToLocalChecked());
 }
 
 static NAN_METHOD(del)
@@ -249,7 +249,7 @@ static NAN_METHOD(get)
 
     Cache::iterator itc = _cache.find(*name);
     if (itc != _cache.end()) {
-        info.GetReturnValue().Set(Nan::New(itc->second.get(*key).c_str()).ToLocalChecked());
+        info.GetReturnValue().Set(Nan::New(itc->second.get(*key)).ToLocalChecked());
         return;
     }
 }
@@ -271,13 +271,13 @@ static NAN_METHOD(keys)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
 
-    Local<Array> keys = Array::New();
+    Local<Array> keys = Nan::New<Array>();
     Cache::iterator itc = _cache.find(*name);
     if (itc != _cache.end()) {
         bkStringMap::const_iterator it = itc->second.items.begin();
         int i = 0;
         while (it != itc->second.items.end()) {
-            keys->Set(Integer::New(i), String::New(it->first.c_str()));
+            keys->Set(Nan::New(i), Nan::New(it->first).ToLocalChecked());
             it++;
             i++;
         }
@@ -287,12 +287,12 @@ static NAN_METHOD(keys)
 
 static NAN_METHOD(names)
 {
-    Local<Array> keys = Array::New();
+    Local<Array> keys = Nan::New<Array>();
     Cache::const_iterator it = _cache.begin();
     int i = 0;
     while (it != _cache.end()) {
-        Local<String> str = String::New(it->first.c_str());
-        keys->Set(Integer::New(i), str);
+        Local<String> str = Nan::New(it->first).ToLocalChecked();
+        keys->Set(Nan::New(i), str);
         it++;
         i++;
     }
@@ -332,27 +332,7 @@ static NAN_METHOD(next)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     Cache::iterator itc = _cache.find(*name);
-    if (itc != _cache.end()) info.GetReturnValue().Set(Nan::New(itc->second.next()));
-}
-
-static NAN_METHOD(save)
-{
-    NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
-    NAN_REQUIRE_ARGUMENT_AS_STRING(1, file);
-    NAN_REQUIRE_ARGUMENT_AS_STRING(2, sep);
-
-    FILE *fp = fopen(*file, "w");
-    if (!fp) ThrowException(Exception::Error(String::New("Cannot create file")));
-
-    Cache::iterator itc = _cache.find(*name);
-    if (itc != _cache.end()) {
-        bkStringMap::const_iterator it = itc->second.items.begin();
-        while (it != itc->second.items.end()) {
-            fprintf(fp, "%s%s%s\n", it->first.c_str(), *sep, it->second.c_str());
-            it++;
-        }
-        fclose(fp);
-    }
+    if (itc != _cache.end()) info.GetReturnValue().Set(itc->second.next());
 }
 
 static NAN_METHOD(lruInit)
@@ -419,15 +399,14 @@ static NAN_METHOD(lruKeys)
 {
     NAN_OPTIONAL_ARGUMENT_AS_STRING(0, str);
     NAN_OPTIONAL_ARGUMENT_AS_INT(1, details, 0);
-    Local<Array> keys = Array::New();
+    Local<Array> keys = Nan::New<Array>();
     char *key = *str;
     int i = 0, n = strlen(key);
     if (!details) {
         list<string>::iterator it = _lru.lru.begin();
         while (it != _lru.lru.end()) {
             if (!*key || !strncmp(it->c_str(), key, n)) {
-                Local<String> str = String::New(it->c_str());
-                keys->Set(Integer::New(i), str);
+                keys->Set(Nan::New(i), Nan::New(it->c_str()).ToLocalChecked());
                 i++;
             }
             it++;
@@ -438,21 +417,18 @@ static NAN_METHOD(lruKeys)
             if (!*key || !strncmp(it->first.c_str(), key, n)) {
                 switch (details) {
                 case 1: {
-                    Local<Object> obj = Local<Object>::New(Object::New());
-                    Local<String> str = String::New(it->first.c_str());
-                    obj->Set(Nan::New("key").ToLocalChecked(), str);
+                    Local<Object> obj = Nan::New<Object>();
+                    obj->Set(Nan::New("key").ToLocalChecked(), Nan::New(it->first).ToLocalChecked());
                     obj->Set(Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
-                    keys->Set(Integer::New(i), obj);
+                    keys->Set(Nan::New(i), obj);
                     break;
                 }
                 default: {
-                    Local<Object> obj = Local<Object>::New(Object::New());
-                    Local<String> str = String::New(it->first.c_str());
-                    Local<String> val = String::New(it->second.first.first.c_str());
-                    obj->Set(Nan::New("key").ToLocalChecked(), str);
+                    Local<Object> obj = Nan::New<Object>();
+                    obj->Set(Nan::New("key").ToLocalChecked(), Nan::New(it->first).ToLocalChecked());
                     obj->Set(Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
-                    obj->Set(Nan::New("value").ToLocalChecked(), val);
-                    keys->Set(Integer::New(i), obj);
+                    obj->Set(Nan::New("value").ToLocalChecked(), Nan::New(it->second.first.first).ToLocalChecked());
+                    keys->Set(Nan::New(i), obj);
                 }}
                 i++;
             }
@@ -462,7 +438,7 @@ static NAN_METHOD(lruKeys)
     info.GetReturnValue().Set(keys);
 }
 
-static void ClearCacheTimer(uv_timer_t *req, int status)
+static void ClearCacheTimer(uv_timer_t *req)
 {
     uint64_t now = time(0);
     Cache::iterator itc = _cache.begin();
@@ -474,15 +450,15 @@ static void ClearCacheTimer(uv_timer_t *req, int status)
 
 static NAN_METHOD(lruStats)
 {
-    Local<Object> obj = Object::New();
-    obj->Set(Nan::New("inserted").ToLocalChecked(), Integer::New(_lru.ins));
-    obj->Set(Nan::New("deleted").ToLocalChecked(), Integer::New(_lru.dels));
-    obj->Set(Nan::New("cleanups").ToLocalChecked(), Integer::New(_lru.cleans));
-    obj->Set(Nan::New("hits").ToLocalChecked(), Integer::New(_lru.hits));
-    obj->Set(Nan::New("misses").ToLocalChecked(), Integer::New(_lru.misses));
-    obj->Set(Nan::New("max").ToLocalChecked(), Integer::New(_lru.max));
-    obj->Set(Nan::New("size").ToLocalChecked(), Integer::New(_lru.size));
-    obj->Set(Nan::New("count").ToLocalChecked(), Integer::New(_lru.items.size()));
+    Local<Object> obj = Nan::New<Object>();
+    obj->Set(Nan::New("inserted").ToLocalChecked(), Nan::New((double)_lru.ins));
+    obj->Set(Nan::New("deleted").ToLocalChecked(), Nan::New((double)_lru.dels));
+    obj->Set(Nan::New("cleanups").ToLocalChecked(), Nan::New((double)_lru.cleans));
+    obj->Set(Nan::New("hits").ToLocalChecked(), Nan::New((double)_lru.hits));
+    obj->Set(Nan::New("misses").ToLocalChecked(), Nan::New((double)_lru.misses));
+    obj->Set(Nan::New("max").ToLocalChecked(), Nan::New((double)_lru.max));
+    obj->Set(Nan::New("size").ToLocalChecked(), Nan::New((double)_lru.size));
+    obj->Set(Nan::New("count").ToLocalChecked(), Nan::New((double)_lru.items.size()));
     info.GetReturnValue().Set(obj);
 }
 
@@ -490,7 +466,6 @@ void CacheInit(Handle<Object> target)
 {
     Nan::HandleScope scope;
 
-    NAN_EXPORT(target, save);
     NAN_EXPORT(target, put);
     NAN_EXPORT(target, incr);
     NAN_EXPORT(target, get);
