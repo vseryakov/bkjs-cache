@@ -3,7 +3,17 @@
 //  April 2013
 //
 
-#include "bkjs.h"
+#include <node.h>
+#include <node_object_wrap.h>
+#include <node_buffer.h>
+#include <node_version.h>
+#include <v8.h>
+#include <v8-profiler.h>
+#include <uv.h>
+#include <nan.h>
+
+using namespace node;
+using namespace v8;
 
 #include <algorithm>
 #include <vector>
@@ -15,6 +25,16 @@
 #include <tr1/unordered_map>
 using namespace std::tr1;
 using namespace std;
+
+#define NAN_REQUIRE_ARGUMENT_STRING(i, var) if (info.Length() <= (i) || !info[i]->IsString()) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(info[i]->ToString());
+#define NAN_REQUIRE_ARGUMENT_AS_STRING(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(info[i]->ToString());
+#define NAN_REQUIRE_ARGUMENT_INT(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be an integer"); return;} int var = info[i]->Int32Value();
+#define NAN_REQUIRE_ARGUMENT_FUNCTION(i, var) if (info.Length() <= (i) || !info[i]->IsFunction()) {Nan::ThrowError("Argument " #i " must be a function"); return;} Local<Function> var = Local<Function>::Cast(info[i]);
+#define NAN_OPTIONAL_ARGUMENT_STRING(i, var) Nan::Utf8String var(info.Length() > (i) && info[i]->IsString() ? info[i]->ToString() : Nan::EmptyString());
+#define NAN_OPTIONAL_ARGUMENT_AS_INT(i, var, dflt) int var = (info.Length() > (i) ? info[i]->Int32Value() : dflt);
+#define NAN_OPTIONAL_ARGUMENT_AS_UINT64(i, var, dflt) uint64_t var = (info.Length() > (i) ? info[i]->NumberValue() : dflt);
+#define NAN_OPTIONAL_ARGUMENT_AS_STRING(i, var) Nan::Utf8String var(info.Length() > (i) ? info[i]->ToString() : Nan::EmptyString());
+#define NAN_TRY_CATCH_CALL(context, callback, argc, argv) { Nan::TryCatch try_catch; (callback)->Call((context), (argc), (argv)); if (try_catch.HasCaught()) FatalException(try_catch); }
 
 static const string empty;
 
@@ -187,7 +207,7 @@ typedef map<std::string, ::StringCache> Cache;
 static Cache _cache;
 static LRUStringCache _lru;
 
-static NAN_METHOD(clear)
+NAN_METHOD(clear)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_OPTIONAL_ARGUMENT_AS_INT(1, ttl, 0);
@@ -204,7 +224,7 @@ static NAN_METHOD(clear)
     }
 }
 
-static NAN_METHOD(put)
+NAN_METHOD(put)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -218,7 +238,7 @@ static NAN_METHOD(put)
     itc->second.put(*key, *val);
 }
 
-static NAN_METHOD(incr)
+NAN_METHOD(incr)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -233,7 +253,7 @@ static NAN_METHOD(incr)
     info.GetReturnValue().Set(Nan::New(v).ToLocalChecked());
 }
 
-static NAN_METHOD(del)
+NAN_METHOD(del)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -242,7 +262,7 @@ static NAN_METHOD(del)
     if (itc != _cache.end()) itc->second.del(*key);
 }
 
-static NAN_METHOD(get)
+NAN_METHOD(get)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -254,7 +274,7 @@ static NAN_METHOD(get)
     }
 }
 
-static NAN_METHOD(exists)
+NAN_METHOD(exists)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, key);
@@ -267,7 +287,7 @@ static NAN_METHOD(exists)
     }
 }
 
-static NAN_METHOD(keys)
+NAN_METHOD(keys)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
 
@@ -285,7 +305,7 @@ static NAN_METHOD(keys)
     info.GetReturnValue().Set(keys);
 }
 
-static NAN_METHOD(names)
+NAN_METHOD(names)
 {
     Local<Array> keys = Nan::New<Array>();
     Cache::const_iterator it = _cache.begin();
@@ -299,7 +319,7 @@ static NAN_METHOD(names)
     info.GetReturnValue().Set(keys);
 }
 
-static NAN_METHOD(size)
+NAN_METHOD(size)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     int count = 0;
@@ -308,7 +328,7 @@ static NAN_METHOD(size)
     info.GetReturnValue().Set(Nan::New(count));
 }
 
-static NAN_METHOD(each)
+NAN_METHOD(each)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     NAN_REQUIRE_ARGUMENT_FUNCTION(1, cb);
@@ -317,7 +337,7 @@ static NAN_METHOD(each)
     if (itc != _cache.end()) itc->second.each(cb);
 }
 
-static NAN_METHOD(begin)
+NAN_METHOD(begin)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     Cache::iterator itc = _cache.find(*name);
@@ -328,35 +348,35 @@ static NAN_METHOD(begin)
     }
 }
 
-static NAN_METHOD(next)
+NAN_METHOD(next)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, name);
     Cache::iterator itc = _cache.find(*name);
     if (itc != _cache.end()) info.GetReturnValue().Set(itc->second.next());
 }
 
-static NAN_METHOD(lruInit)
+NAN_METHOD(lruInit)
 {
     NAN_REQUIRE_ARGUMENT_INT(0, max);
     if (max > 0) _lru.max = max;
 }
 
-static NAN_METHOD(lruSize)
+NAN_METHOD(lruSize)
 {
     info.GetReturnValue().Set(Nan::New((double)_lru.size));
 }
 
-static NAN_METHOD(lruCount)
+NAN_METHOD(lruCount)
 {
     info.GetReturnValue().Set(Nan::New((double)_lru.items.size()));
 }
 
-static NAN_METHOD(lruClear)
+NAN_METHOD(lruClear)
 {
     _lru.clear();
 }
 
-static NAN_METHOD(lruPut)
+NAN_METHOD(lruPut)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, val);
@@ -365,7 +385,7 @@ static NAN_METHOD(lruPut)
     _lru.put(*key, *val, expire);
 }
 
-static NAN_METHOD(lruIncr)
+NAN_METHOD(lruIncr)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_REQUIRE_ARGUMENT_AS_STRING(1, val);
@@ -375,7 +395,7 @@ static NAN_METHOD(lruIncr)
     info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
 }
 
-static NAN_METHOD(lruGet)
+NAN_METHOD(lruGet)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_OPTIONAL_ARGUMENT_AS_UINT64(1, now, 0);
@@ -383,19 +403,19 @@ static NAN_METHOD(lruGet)
     info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
 }
 
-static NAN_METHOD(lruDel)
+NAN_METHOD(lruDel)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     _lru.del(*key);
 }
 
-static NAN_METHOD(lruExists)
+NAN_METHOD(lruExists)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     info.GetReturnValue().Set(Nan::New(_lru.exists(*key)));
 }
 
-static NAN_METHOD(lruKeys)
+NAN_METHOD(lruKeys)
 {
     NAN_OPTIONAL_ARGUMENT_AS_STRING(0, str);
     NAN_OPTIONAL_ARGUMENT_AS_INT(1, details, 0);
@@ -448,7 +468,7 @@ static void ClearCacheTimer(uv_timer_t *req)
     }
 }
 
-static NAN_METHOD(lruStats)
+NAN_METHOD(lruStats)
 {
     Local<Object> obj = Nan::New<Object>();
     obj->Set(Nan::New("inserted").ToLocalChecked(), Nan::New((double)_lru.ins));
@@ -462,8 +482,7 @@ static NAN_METHOD(lruStats)
     info.GetReturnValue().Set(obj);
 }
 
-void CacheInit(Handle<Object> target)
-{
+static NAN_MODULE_INIT(CacheInit) {
     Nan::HandleScope scope;
 
     NAN_EXPORT(target, put);
@@ -493,7 +512,7 @@ void CacheInit(Handle<Object> target)
 
     uv_timer_t *req = new uv_timer_t;
     uv_timer_init(uv_default_loop(), req);
-    uv_timer_start(req, ClearCacheTimer, 0, 60000);
+    uv_timer_start(req, (uv_timer_cb)ClearCacheTimer, 0, 60000);
 }
 
 NODE_MODULE(binding, CacheInit);
