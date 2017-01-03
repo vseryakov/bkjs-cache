@@ -104,6 +104,9 @@ struct LRUStringCache {
         items.erase(it);
         dels++;
     }
+    string front() {
+        return lru.size() ? lru.front() : empty;
+    }
     void clean() {
         const LRUStringItems::iterator it = items.find(lru.front());
         if (it == items.end()) return;
@@ -376,6 +379,11 @@ NAN_METHOD(lruClear)
     _lru.clear();
 }
 
+NAN_METHOD(lruClean)
+{
+    _lru.clean();
+}
+
 NAN_METHOD(lruPut)
 {
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
@@ -392,7 +400,7 @@ NAN_METHOD(lruIncr)
     NAN_OPTIONAL_ARGUMENT_AS_UINT64(2, expire, 0);
 
     const string& str = _lru.incr(*key, *val, expire);
-    info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
+    info.GetReturnValue().Set(Nan::New(str).ToLocalChecked());
 }
 
 NAN_METHOD(lruGet)
@@ -400,7 +408,13 @@ NAN_METHOD(lruGet)
     NAN_REQUIRE_ARGUMENT_AS_STRING(0, key);
     NAN_OPTIONAL_ARGUMENT_AS_UINT64(1, now, 0);
     const string& str = _lru.get(*key, now);
-    info.GetReturnValue().Set(Nan::New(str.c_str()).ToLocalChecked());
+    info.GetReturnValue().Set(Nan::New(str).ToLocalChecked());
+}
+
+NAN_METHOD(lruFront)
+{
+    const string& str = _lru.front();
+    info.GetReturnValue().Set(Nan::New(str).ToLocalChecked());
 }
 
 NAN_METHOD(lruDel)
@@ -509,6 +523,8 @@ static NAN_MODULE_INIT(CacheInit) {
     NAN_EXPORT(target, lruDel);
     NAN_EXPORT(target, lruKeys);
     NAN_EXPORT(target, lruClear);
+    NAN_EXPORT(target, lruClean);
+    NAN_EXPORT(target, lruFront);
 
     uv_timer_t *req = new uv_timer_t;
     uv_timer_init(uv_default_loop(), req);
