@@ -1,5 +1,5 @@
 {
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": "Vlad Seryakov",
   "name": "bkjs-cache",
   "description": "Cache and LRU support for node.js and backendjs",
