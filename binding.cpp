@@ -22,8 +22,12 @@ using namespace v8;
 #include <list>
 #include <map>
 #include <queue>
+#if defined __APPLE__ && __cplusplus < 201103L
 #include <tr1/unordered_map>
 using namespace std::tr1;
+#else
+#include <unordered_map>
+#endif
 using namespace std;
 
 #define NAN_REQUIRE_ARGUMENT_STRING(i, var) if (info.Length() <= (i) || !info[i]->IsString()) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(info[i]->ToString());

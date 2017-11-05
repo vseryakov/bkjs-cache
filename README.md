@@ -4,7 +4,6 @@
 
  - Generic cache outside of V8 heap, implements named sets of caches, `name` refers to a separate named cache
    with its own set of keys:
-   - `save(name, file, separator)` - dump names cache contents into a file
    - `put(name, key, value)` - save a key value pair in the named cache
    - `incr(name, key, value)` - increment a key value, non existent keys are assumed to be 0
    - `get(name, key)` - return value for a key
