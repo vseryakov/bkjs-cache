@@ -30,15 +30,25 @@ using namespace std::tr1;
 #endif
 using namespace std;
 
-#define NAN_REQUIRE_ARGUMENT_STRING(i, var) if (info.Length() <= (i) || !info[i]->IsString()) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(info[i]->ToString());
-#define NAN_REQUIRE_ARGUMENT_AS_STRING(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(info[i]->ToString());
-#define NAN_REQUIRE_ARGUMENT_INT(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be an integer"); return;} int var = info[i]->Int32Value();
+#define NAN_OPTIONAL_ARGUMENT_AS_BOOL(i, var, dflt) bool var = (info.Length() > (i) ? Nan::To<bool>(info[i]).FromJust() : dflt);
+#define NAN_OPTIONAL_ARGUMENT_AS_INT(i, var, dflt) int var = (info.Length() > (i) ? Nan::To<int32_t>(info[i]).FromJust() : dflt);
+#define NAN_OPTIONAL_ARGUMENT_AS_UINT(i, var, dflt) unsigned int var = (info.Length() > (i) ? Nan::To<int32_t>(info[i]).FromJust() : dflt);
+#define NAN_OPTIONAL_ARGUMENT_AS_INT64(i, var, dflt) int64_t var = (info.Length() > (i) ? Nan::To<int64_t>(info[i]).FromJust() : dflt);
+#define NAN_OPTIONAL_ARGUMENT_AS_UINT64(i, var, dflt) uint64_t var = (info.Length() > (i) ? Nan::To<int64_t>(info[i]).FromJust() : dflt);
+#define NAN_OPTIONAL_ARGUMENT_AS_STRING(i, var) Nan::Utf8String var(info.Length() > (i) ? Nan::To<v8::String>(info[i]).ToLocalChecked() : Nan::EmptyString());
+
+#define NAN_REQUIRE_ARGUMENT(i) if (info.Length() <= i || info[i]->IsUndefined()) {Nan::ThrowError("Argument " #i " is required");return;}
+#define NAN_REQUIRE_ARGUMENT_STRING(i, var) if (info.Length() <= (i) || !info[i]->IsString()) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(Nan::To<v8::String>(info[i]).ToLocalChecked());
+#define NAN_REQUIRE_ARGUMENT_AS_STRING(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be a string"); return;} Nan::Utf8String var(Nan::To<v8::String>(info[i]).ToLocalChecked());
+#define NAN_REQUIRE_ARGUMENT_OBJECT(i, var) if (info.Length() <= (i) || !info[i]->IsObject()) {Nan::ThrowError("Argument " #i " must be an object"); return;} Local<Object> var(Nan::To<v8::Object>(info[i]).ToLocalChecked());
+#define NAN_REQUIRE_ARGUMENT_INT(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be an integer"); return;} int var = Nan::To<int32_t>(info[i]).FromJust();
+#define NAN_REQUIRE_ARGUMENT_INT64(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be an integer"); return;} int64_t var = Nan::To<int64_t>(info[i]).FromJust();
+#define NAN_REQUIRE_ARGUMENT_BOOL(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be a boolean"); return;} int var = Nan::To<int32_t>(info[i]).FromJust();
+#define NAN_REQUIRE_ARGUMENT_NUMBER(i, var) if (info.Length() <= (i)) {Nan::ThrowError("Argument " #i " must be a number"); return;} double var = Nan::To<double>(info[i]).FromJust();
+#define NAN_REQUIRE_ARGUMENT_ARRAY(i, var) if (info.Length() <= (i) || !info[i]->IsArray()) {Nan::ThrowError("Argument " #i " must be an array"); return;} Local<Array> var = Local<Array>::Cast(info[i]);
 #define NAN_REQUIRE_ARGUMENT_FUNCTION(i, var) if (info.Length() <= (i) || !info[i]->IsFunction()) {Nan::ThrowError("Argument " #i " must be a function"); return;} Local<Function> var = Local<Function>::Cast(info[i]);
-#define NAN_OPTIONAL_ARGUMENT_STRING(i, var) Nan::Utf8String var(info.Length() > (i) && info[i]->IsString() ? info[i]->ToString() : Nan::EmptyString());
-#define NAN_OPTIONAL_ARGUMENT_AS_INT(i, var, dflt) int var = (info.Length() > (i) ? info[i]->Int32Value() : dflt);
-#define NAN_OPTIONAL_ARGUMENT_AS_UINT64(i, var, dflt) uint64_t var = (info.Length() > (i) ? info[i]->NumberValue() : dflt);
-#define NAN_OPTIONAL_ARGUMENT_AS_STRING(i, var) Nan::Utf8String var(info.Length() > (i) ? info[i]->ToString() : Nan::EmptyString());
-#define NAN_TRY_CATCH_CALL(context, callback, argc, argv) { Nan::TryCatch try_catch; (callback)->Call((context), (argc), (argv)); if (try_catch.HasCaught()) FatalException(try_catch); }
+
+#define NAN_TRY_CATCH_CALL(context, callback, argc, argv) { Nan::TryCatch try_catch; Nan::Call((callback), (context), (argc), (argv)); if (try_catch.HasCaught()) FatalException(try_catch); }
 
 static const string empty;
 
@@ -191,8 +201,8 @@ struct StringCache {
         Nan::EscapableHandleScope scope;
         if (nextIt == items.end()) return scope.Escape(Nan::Undefined());
         Local<Array> obj = Nan::New<Array>();
-        obj->Set(Nan::New(0), Nan::New(nextIt->first).ToLocalChecked());
-        obj->Set(Nan::New(1), Nan::New(nextIt->second).ToLocalChecked());
+        Nan::Set(obj, Nan::New(0), Nan::New(nextIt->first).ToLocalChecked());
+        Nan::Set(obj, Nan::New(1), Nan::New(nextIt->second).ToLocalChecked());
         nextIt++;
         return scope.Escape(obj);
     }
@@ -304,7 +314,7 @@ NAN_METHOD(keys)
         bkStringMap::const_iterator it = itc->second.items.begin();
         int i = 0;
         while (it != itc->second.items.end()) {
-            keys->Set(Nan::New(i), Nan::New(it->first).ToLocalChecked());
+            Nan::Set(keys, Nan::New(i), Nan::New(it->first).ToLocalChecked());
             it++;
             i++;
         }
@@ -319,7 +329,7 @@ NAN_METHOD(names)
     int i = 0;
     while (it != _cache.end()) {
         Local<String> str = Nan::New(it->first).ToLocalChecked();
-        keys->Set(Nan::New(i), str);
+        Nan::Set(keys, Nan::New(i), str);
         it++;
         i++;
     }
@@ -444,7 +454,7 @@ NAN_METHOD(lruKeys)
         list<string>::iterator it = _lru.lru.begin();
         while (it != _lru.lru.end()) {
             if (!*key || !strncmp(it->c_str(), key, n)) {
-                keys->Set(Nan::New(i), Nan::New(it->c_str()).ToLocalChecked());
+                Nan::Set(keys, Nan::New(i), Nan::New(it->c_str()).ToLocalChecked());
                 i++;
             }
             it++;
@@ -456,17 +466,17 @@ NAN_METHOD(lruKeys)
                 switch (details) {
                 case 1: {
                     Local<Object> obj = Nan::New<Object>();
-                    obj->Set(Nan::New("key").ToLocalChecked(), Nan::New(it->first).ToLocalChecked());
-                    obj->Set(Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
-                    keys->Set(Nan::New(i), obj);
+                    Nan::Set(obj, Nan::New("key").ToLocalChecked(), Nan::New(it->first).ToLocalChecked());
+                    Nan::Set(obj, Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
+                    Nan::Set(keys, Nan::New(i), obj);
                     break;
                 }
                 default: {
                     Local<Object> obj = Nan::New<Object>();
-                    obj->Set(Nan::New("key").ToLocalChecked(), Nan::New(it->first).ToLocalChecked());
-                    obj->Set(Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
-                    obj->Set(Nan::New("value").ToLocalChecked(), Nan::New(it->second.first.first).ToLocalChecked());
-                    keys->Set(Nan::New(i), obj);
+                    Nan::Set(obj, Nan::New("key").ToLocalChecked(), Nan::New(it->first).ToLocalChecked());
+                    Nan::Set(obj, Nan::New("expire").ToLocalChecked(), Nan::New((double)it->second.first.second));
+                    Nan::Set(obj, Nan::New("value").ToLocalChecked(), Nan::New(it->second.first.first).ToLocalChecked());
+                    Nan::Set(keys, Nan::New(i), obj);
                 }}
                 i++;
             }
@@ -489,14 +499,14 @@ static void ClearCacheTimer(uv_timer_t *req)
 NAN_METHOD(lruStats)
 {
     Local<Object> obj = Nan::New<Object>();
-    obj->Set(Nan::New("inserted").ToLocalChecked(), Nan::New((double)_lru.ins));
-    obj->Set(Nan::New("deleted").ToLocalChecked(), Nan::New((double)_lru.dels));
-    obj->Set(Nan::New("cleanups").ToLocalChecked(), Nan::New((double)_lru.cleans));
-    obj->Set(Nan::New("hits").ToLocalChecked(), Nan::New((double)_lru.hits));
-    obj->Set(Nan::New("misses").ToLocalChecked(), Nan::New((double)_lru.misses));
-    obj->Set(Nan::New("max").ToLocalChecked(), Nan::New((double)_lru.max));
-    obj->Set(Nan::New("size").ToLocalChecked(), Nan::New((double)_lru.size));
-    obj->Set(Nan::New("count").ToLocalChecked(), Nan::New((double)_lru.items.size()));
+    Nan::Set(obj, Nan::New("inserted").ToLocalChecked(), Nan::New((double)_lru.ins));
+    Nan::Set(obj, Nan::New("deleted").ToLocalChecked(), Nan::New((double)_lru.dels));
+    Nan::Set(obj, Nan::New("cleanups").ToLocalChecked(), Nan::New((double)_lru.cleans));
+    Nan::Set(obj, Nan::New("hits").ToLocalChecked(), Nan::New((double)_lru.hits));
+    Nan::Set(obj, Nan::New("misses").ToLocalChecked(), Nan::New((double)_lru.misses));
+    Nan::Set(obj, Nan::New("max").ToLocalChecked(), Nan::New((double)_lru.max));
+    Nan::Set(obj, Nan::New("size").ToLocalChecked(), Nan::New((double)_lru.size));
+    Nan::Set(obj, Nan::New("count").ToLocalChecked(), Nan::New((double)_lru.items.size()));
     info.GetReturnValue().Set(obj);
 }
 

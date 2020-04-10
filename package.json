@@ -1,5 +1,5 @@
 {
-  "version": "0.5.2",
+  "version": "0.5.3",
   "author": "Vlad Seryakov",
   "name": "bkjs-cache",
   "description": "Cache and LRU support for node.js and backendjs",
@@ -10,10 +10,10 @@
     "url": "https://github.com/vseryakov/bkjs-cache.git"
   },
   "dependencies": {
-    "nan": ">= 2.4.0"
+    "nan": ">= 2.14.0"
   },
   "engines": {
-    "node": ">= 6.0"
+    "node": ">= 10.0"
   },
   "license": "BSD-3-Clause",
   "gypfile": true,
