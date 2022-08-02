@@ -50,7 +50,7 @@ using namespace std;
 
 #define NAN_TRY_CATCH_CALL(context, callback, argc, argv) { Nan::TryCatch try_catch; Nan::Call((callback), (context), (argc), (argv)); if (try_catch.HasCaught()) FatalException(try_catch); }
 
-static const string empty;
+static const string Empty;
 
 typedef map<string, string> bkStringMap;
 
@@ -70,12 +70,12 @@ struct LRUStringCache {
         const LRUStringItems::iterator it = items.find(k);
         if (it == items.end()) {
             misses++;
-            return empty;
+            return Empty;
         }
         hits++;
         if (now > 0 && now > it->second.first.second) {
             del(k);
-            return empty;
+            return Empty;
         }
         lru.splice(lru.end(), lru, it->second.second);
         return it->second.first.first;
@@ -119,7 +119,7 @@ struct LRUStringCache {
         dels++;
     }
     string front() {
-        return lru.size() ? lru.front() : empty;
+        return lru.size() ? lru.front() : Empty;
     }
     void clean() {
         const LRUStringItems::iterator it = items.find(lru.front());
@@ -149,7 +149,7 @@ struct StringCache {
     const string &get(const string &key) {
         bkStringMap::iterator it = items.find(key);
         if (it != items.end()) return it->second;
-        return empty;
+        return Empty;
     }
     string &put(const string &key, const string &val) {
         bkStringMap::iterator it = items.find(key);
